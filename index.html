@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BaseFlow🧹 — Limpieza & Análisis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070e;--surface:#0d0d1a;--card:#12121f;--border:#1c1c32;--pos:#2dd4bf;--neg:#fb7185;--neu:#64748b;--acc:#818cf8;--text:#e2e8f0;--sub:#94a3b8;--mut:#334155;--warn:#f59e0b;}
+body.light{--bg:#f4f4f8;--surface:#ffffff;--card:#ffffff;--border:#e2e4ef;--pos:#0d9488;--neg:#e11d48;--neu:#64748b;--acc:#6366f1;--text:#1e1b4b;--sub:#64748b;--mut:#cbd5e1;--warn:#d97706;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.mono{font-family:'Space Mono',monospace;}
+/* Layout */
+#header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surface);gap:12px;flex-wrap:wrap;}
+#header h1{font-size:18px;font-weight:800;letter-spacing:-0.5px;display:flex;align-items:center;gap:10px;}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:var(--acc);}
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.tpl-row{display:flex;align-items:center;gap:8px;}
+/* Steps */
+.steps{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px;}
+.step-btn{background:none;border:none;color:var(--sub);font-family:'Syne',sans-serif;font-weight:600;font-size:13px;padding:12px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap;}
+.step-btn.active{color:var(--acc);border-bottom-color:var(--acc);}
+.step-btn.done{color:var(--pos);}
+.step-btn:disabled{opacity:.35;cursor:default;}
+.step-num{width:20px;height:20px;border-radius:50%;background:var(--border);font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.step-btn.active .step-num{background:var(--acc);color:#fff;}
+.step-btn.done .step-num{background:var(--pos);color:#07070e;}
+/* Content */
+.content{padding:24px;max-width:1100px;margin:0 auto;}
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.card-sm{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.card-title{font-weight:700;font-size:14px;margin-bottom:14px;color:var(--text);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+/* Buttons */
+btn,.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Syne',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .15s;}
+.btn:hover{border-color:var(--acc);color:var(--acc);}
+.btn-primary{background:var(--acc);border-color:var(--acc);color:#fff;}
+.btn-primary:hover{background:#6366f1;border-color:#6366f1;color:#fff;}
+.btn-danger{color:var(--neg);border-color:var(--neg);}
+.btn-danger:hover{background:rgba(251,113,133,.1);}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.btn-pos{background:var(--pos);border-color:var(--pos);color:#07070e;}
+.btn-pos:hover{background:#14b8a6;}
+/* Inputs */
+input,select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Syne',sans-serif;border-radius:8px;padding:7px 12px;font-size:13px;outline:none;width:100%;transition:border .15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--acc);}
+select option{background:var(--surface);}
+label{display:block;color:var(--sub);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;}
+.field{margin-bottom:14px;}
+/* Upload zone */
+#dropzone{border:2px dashed var(--border);border-radius:16px;padding:60px 40px;text-align:center;cursor:pointer;transition:all .2s;}
+#dropzone:hover,#dropzone.drag{border-color:var(--acc);background:rgba(129,140,248,.05);}
+#dropzone .dz-icon{font-size:40px;margin-bottom:14px;}
+#dropzone h2{font-size:20px;font-weight:800;margin-bottom:8px;}
+#dropzone p{color:var(--sub);font-size:13px;}
+.format-tags{display:flex;gap:6px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+.tag{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--border);color:var(--sub);}
+/* Mapping table */
+.map-table{width:100%;border-collapse:collapse;}
+.map-table th{text-align:left;padding:8px 12px;color:var(--mut);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.map-table td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.map-table tr:last-child td{border-bottom:none;}
+.concept-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:var(--border);}
+/* Rules table */
+.rules-table{width:100%;border-collapse:collapse;}
+.rules-table th{text-align:left;padding:7px 10px;color:var(--mut);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.rules-table td{padding:6px 10px;border-bottom:1px solid var(--border);}
+.rules-table input,.rules-table select{width:100%;background:var(--bg);}
+/* Toggle */
+.toggle-row{display:flex;align-items:center;gap:12px;padding:10px 0;}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:11px;cursor:pointer;transition:.2s;}
+.toggle input:checked+.toggle-slider{background:var(--acc);}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px);}
+/* KPIs */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px;}
+.kpi{text-align:center;padding:16px 10px;}
+.kpi-label{color:var(--sub);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.kpi-val{font-size:24px;font-weight:800;font-family:'Space Mono',monospace;}
+.kpi-pct{color:var(--mut);font-size:11px;margin-top:3px;font-family:'Space Mono',monospace;}
+/* Data table */
+.data-table-wrap{overflow-x:auto;}
+.data-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Space Mono',monospace;}
+.data-table th{text-align:left;padding:8px 12px;color:var(--mut);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap;position:sticky;top:0;}
+.data-table td{padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;}
+.data-table tr:hover td{background:var(--surface);}
+.sent-badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;}
+/* Tabs */
+.tab-row{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+.tab{background:none;border:none;color:var(--sub);font-family:'Syne',sans-serif;font-weight:600;font-size:13px;padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc);}
+/* Settings overlay */
+#settings-overlay{position:fixed;inset:0;background:rgba(7,7,14,.85);z-index:100;display:flex;align-items:center;justify-content:center;}
+#settings-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;width:440px;max-width:95vw;}
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chip{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--sub);transition:all .15s;}
+.chip.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+/* Alerts */
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:8px;}
+.alert-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--warn);}
+.alert-ok{background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.3);color:var(--pos);}
+/* Misc */
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.mt{margin-top:14px;}.mt8{margin-top:8px;}.mb{margin-bottom:14px;}.mb8{margin-bottom:8px;}
+.sep{height:1px;background:var(--border);margin:18px 0;}
+.sub{color:var(--sub);}
+.online-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;}
+.online-dot.on{background:var(--pos);}.online-dot.off{background:var(--neg);}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DAYS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+const DEFAULT_TAGS = {
+  SERVICIO: ['Baja pendiente','Caída Masiva de Red','Consultas Generales ATC','CROSS DÚOS - CLIENTE WIN','CROSS PLAN GAMER - CLIENTE WIN','CROSS TRÍOS - CLIENTE WIN','Estado de Reclamo','Estatus de Instalación','Excliente - Hater','Insatisfecho con la atención','Inconformidad con Recibo Facturado','Inconveniente con Winbox','Insatisfecho con WIN Games','Insatisfecho con cobro del servicio','Insatisfecho con el servicio','Interesado en otros productos','Lentitud Intermitencia','Pago Duplicado','Pendiente Entrega FonoWin','Pendiente Entrega Mesh','Pendiente Entrega Winbox','Pérdida de servicio','Problemas con DGO','Problemas con Fono Win','Problemas con Mesh','Problemas con WinTV','Problemas en la Instalación','Problemas Gamer','PROMOCIONES CLIENTES','Reactivación de suspensión por error sistema','Reactivación de suspensión por falta de pago','Sugerencia','VT Dentro de Plazo','VT Fuera de Plazo','WIN LOVER','Consulta WIFI 6'],
+  VENTAS: ['Cobertura DÚO DGO','Cobertura DÚO FONOWIN','Cobertura DÚO WIN','Cobertura DÚO WIN TV','Cobertura DÚO WINTV PLUS','Cobertura Plan Gamer','Cobertura TRIO WIN','Cobertura TRIO WINTV PLUS','Cobertura WIN','Cobertura Playas','Información DÚO DGO','Información DÚO FONOWIN','Información DÚO WIN','Información DÚO WIN TV','Información DÚO WINTV PLUS','Información Monoproducto','Información Plan Gamer','Información Playas','Información TRIO WIN','Información TRIO WINTV PLUS','Información WIN','TRIO WINTV PLUS','Información WINTV PLUS','INFORMACIÓN XGSPON','Información Verisure','Insatisfecho con la atención de ventas','Insatisfecho con oferta comercial','Sin cobertura','Sin Factibilidad Técnica','Información WIN TV - L1MAX','Información WINGames'],
+  OTROS: ['Comentario no relacionado a WIN','Competencia','Concursos - Sorteos','Etiqueta a otro usuario','Patrocinados - KOLS','Post Intriga','Post de Interacción','Sin consulta','Temas relacionados a WIN','Trabaja con Nosotros','Vendedor Externo BLOQUEAR','WIN-LINZOR']
+};
+
+const CONCEPTS = [
+  {key:'date',label:'Fecha',icon:'📅',hint:'Columna con fecha/hora'},
+  {key:'text',label:'Texto',icon:'💬',hint:'Comentario o mención'},
+  {key:'sentiment',label:'Sentimiento',icon:'🎭',hint:'Positivo/Negativo/Neutro'},
+  {key:'tag',label:'Tag/Tema',icon:'🏷️',hint:'Temática o categoría'},
+  {key:'platform',label:'Plataforma',icon:'📱',hint:'IG, Twitter, FB, etc.'},
+  {key:'page',label:'Página',icon:'🌐',hint:'Página o cuenta'},
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const S = {
+  step: 'upload',
+  rawData: [],
+  cols: [],
+  cleanData: [],
+  config: makeConfig(),
+  templates: JSON.parse(localStorage.getItem('bf_tpl') || '{}'),
+  apiKey: localStorage.getItem('bf_key') || '',
+  theme: localStorage.getItem('bf_theme') || 'dark',
+  online: navigator.onLine,
+  showSettings: false,
+  resTab: 'data',
+  sideTab: 'S1',
+  aiLoading: false,
+  error: '',
+  chartInstances: {}
+};
+
+function makeConfig(name=''){
+  return {
+    name,
+    mapRows: Array.from({length:16},(_,i)=>({id:i,sourceCol:'',customName:'',actionEnabled:false,actionMode:'ai',action:'',formula:'',actionResult:null})),
+    dateFields:{ hora:false, fecha:false, mes:false, semana:false, año:false },
+    tagClassifier:{ enabled:false, tagCol:'', outputCol:'Tipo de tags', groups: JSON.parse(JSON.stringify(DEFAULT_TAGS)) },
+    primerContacto:{ enabled:false, col:'' },
+    casoReincidente:{ enabled:false, tagCol:'' },
+    s1:{ replacements:[] },
+    sentiment:{ replacements:[] },
+    negativos:{
+      estado:{ enabled:false, col:'' },
+      motivo:{ enabled:false, col:'' },
+      entregaDatos:{ enabled:false, col:'' },
+      reincidencia:{ enabled:false, nickCol:'', dniCol:'' },
+      areaEscalada:{ enabled:false, col:'' },
+      replacements:[],
+    },
+  };
+}
+
+function toggleTheme(){
+  S.theme = S.theme==='dark'?'light':'dark';
+  localStorage.setItem('bf_theme', S.theme);
+  document.body.className = S.theme==='light'?'light':'';
+  render();
+}
+// Apply theme on load
+document.body.className = S.theme==='light'?'light':'';
+
+// Derive colMap from mapRows for chart/KPI compatibility
+function deriveColMap(){
+  const cm = {date:'',text:'',sentiment:'',tag:'',platform:'',page:''};
+  const hints = {
+    date:['fecha','date','time','hora','timestamp'],
+    text:['texto','text','comentario','comment','mención','mencion','contenido'],
+    sentiment:['sentimiento','sentiment','emoción','emocion','tono'],
+    tag:['tag','tema','etiqueta','categoria','categoría','topic'],
+    platform:['plataforma','platform','red','network','canal'],
+    page:['página','pagina','page','cuenta','account','perfil']
+  };
+  S.config.mapRows.forEach(r=>{
+    if(!r.sourceCol) return;
+    const name = (r.outputName||r.sourceCol).toLowerCase();
+    Object.keys(hints).forEach(k=>{
+      if(!cm[k] && hints[k].some(h=>name.includes(h))) cm[k]=r.sourceCol;
+    });
+  });
+  return cm;
+}
+
+// ═══════════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════════
+function safeConfig(){
+  if(!S.config.s1) S.config.s1 = { replacements:[] };
+  if(!S.config.sentiment) S.config.sentiment = { replacements:[] };
+  if(!S.config.negativos) S.config.negativos = { estado:{enabled:false,col:''}, motivo:{enabled:false,col:''}, entregaDatos:{enabled:false,col:''}, reincidencia:{enabled:false,nickCol:'',dniCol:''}, areaEscalada:{enabled:false,col:''}, replacements:[] };
+  if(!S.config.negativos.reincidencia) S.config.negativos.reincidencia = {enabled:false,nickCol:'',dniCol:''};
+  if(!S.config.negativos.areaEscalada) S.config.negativos.areaEscalada = {enabled:false,col:''};
+  if(!S.config.negativos.replacements) S.config.negativos.replacements = [];
+  if(!S.config.tagClassifier) S.config.tagClassifier = {enabled:false,tagCol:'',outputCol:'Tipo de tags',groups:JSON.parse(JSON.stringify(DEFAULT_TAGS))};
+  if(!S.config.primerContacto) S.config.primerContacto = {enabled:false,col:''};
+  if(!S.config.casoReincidente) S.config.casoReincidente = {enabled:false,tagCol:''};
+  if(!S.config.dateFields) S.config.dateFields = {hora:false,fecha:false,mes:false,semana:false,año:false};
+  if(!S.config.mapRows) S.config.mapRows = Array.from({length:16},(_,i)=>({id:i,sourceCol:'',customName:'',actionEnabled:false,actionMode:'ai',action:'',formula:'',actionResult:null}));
+}
+function saveApiKey(k){ localStorage.setItem('bf_key', k); S.apiKey = k; }
+
+function saveCurrentTemplate(){
+  const name = S.config.name.trim();
+  if(!name) return alert('Ponle un nombre a la plantilla primero.');
+  S.templates[name] = JSON.parse(JSON.stringify(S.config));
+  saveTemplates();
+  render();
+}
+
+function loadTemplate(name){
+  if(!S.templates[name]) return;
+  S.config = JSON.parse(JSON.stringify(S.templates[name]));
+  render();
+}
+
+function deleteTemplate(name){
+  if(!confirm(`¿Eliminar plantilla "${name}"?`)) return;
+  delete S.templates[name];
+  saveTemplates();
+  render();
+}
+
+// ═══════════════════════════════════════════════
+// FILE READING
+// ═══════════════════════════════════════════════
+function autoFillFromCols(){
+  const colSet = new Set(S.cols);
+  // If a template is loaded (has named mapRows), respect it and just flag missing/extra cols
+  const hasTpl = S.config.mapRows.some(r => r.sourceCol && r.sourceCol !== '__custom__');
+  if(hasTpl){
+    // Mark rows: existing cols → normal, missing cols → __MISSING__
+    S.config.mapRows = S.config.mapRows.map(r => ({
+      ...r,
+      _missing: r.sourceCol && r.sourceCol !== '__custom__' && !colSet.has(r.sourceCol)
+    }));
+    // Add extra cols from file that aren't in template as _extra rows
+    const tplCols = new Set(S.config.mapRows.map(r=>r.sourceCol).filter(Boolean));
+    const extraCols = S.cols.filter(c => !tplCols.has(c));
+    extraCols.forEach((col, i) => {
+      S.config.mapRows.push({
+        id: Date.now()+i, sourceCol: col, customName:'',
+        actionEnabled:false, actionMode:'ai', action:'', formula:'', actionResult:null,
+        _extra: true
+      });
+    });
+  } else {
+    // No template — auto-fill all columns
+    const needed = Math.max(16, S.cols.length);
+    S.config.mapRows = Array.from({length:needed},(_,i)=>({
+      id:i, sourceCol: S.cols[i]||'', customName:'', actionEnabled:false,
+      actionMode:'ai', action:'', formula:'', actionResult:null,
+      _missing:false, _extra:false
+    }));
+  }
+}
+
+function readFile(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'csv'){
+    Papa.parse(file,{
+      header:true, skipEmptyLines:true,
+      complete(r){ S.rawData = r.data; S.cols = r.meta.fields||[]; autoFillFromCols(); S.step='mapping'; S.error=''; render(); },
+      error(e){ S.error = 'Error leyendo CSV: '+e.message; render(); }
+    });
+  } else if(['xlsx','xls'].includes(ext)){
+    const reader = new FileReader();
+    reader.onload = e => {
+      try{
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+        S.rawData = json; S.cols = json.length ? Object.keys(json[0]) : [];
+        autoFillFromCols(); S.step = 'mapping'; S.error = ''; render();
+      } catch(err){ S.error = 'Error leyendo Excel: '+err.message; render(); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    S.error = 'Formato no soportado. Usa CSV o XLSX.';
+    render();
+  }
+}
+
+function loadSheetURL(url){
+  // Convert Google Sheets share URL to CSV export
+  let csvUrl = url;
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if(m){
+    csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv`;
+  }
+  S.error = ''; render();
+  fetch(csvUrl)
+    .then(r=>r.text())
+    .then(txt=>{
+      Papa.parse(txt,{
+        header:true, skipEmptyLines:true,
+        complete(r){ S.rawData=r.data; S.cols=r.meta.fields||[]; autoFillFromCols(); S.step='mapping'; render(); }
+      });
+    })
+    .catch(()=>{ S.error='No se pudo cargar el sheet. Asegúrate que esté publicado como CSV o usa un enlace de exportación.'; render(); });
+}
+
+// ═══════════════════════════════════════════════
+// DATA PROCESSING
+// ═══════════════════════════════════════════════
+function parseDate(val){
+  if(!val) return null;
+  let d = new Date(val);
+  if(!isNaN(d)) return d;
+  const m = String(val).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if(m){
+    const yr = m[3].length===2?'20'+m[3]:m[3];
+    d = new Date(`${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`);
+    if(!isNaN(d)) return d;
+  }
+  return null;
+}
+
+function getWeekOfMonth(d){
+  return Math.ceil(d.getDate() / 7);
+}
+
+function extractDateParts(dateObj, dateFields){
+  if(!dateObj || !dateFields) return {};
+  const parts = {};
+  if(dateFields.hora) parts['Rango_horario'] = dateObj.getHours();
+  if(dateFields.fecha) parts['Fecha'] = `${String(dateObj.getDate()).padStart(2,'0')}/${String(dateObj.getMonth()+1).padStart(2,'0')}/${dateObj.getFullYear()}`;
+  if(dateFields.mes) parts['Mes'] = MONTHS_ES[dateObj.getMonth()];
+  if(dateFields.semana) parts['Semana'] = getWeekOfMonth(dateObj);
+  if(dateFields.año) parts['Año'] = dateObj.getFullYear();
+  return parts;
+}
+
+function processData(){
+  const cfg = S.config;
+  const rows = S.rawData;
+  const cm = deriveColMap();
+  // Store for charts
+  S._colMap = cm;
+
+  let processed = rows.map(row => {
+    const clean = {};
+    cfg.mapRows.forEach(r => {
+      if(!r.sourceCol) return;
+      const isCustom = r.sourceCol === '__custom__';
+      const outName = isCustom ? (r.customName||'Nueva_columna') : r.sourceCol;
+      clean[outName] = isCustom ? '' : (row[r.sourceCol] ?? '');
+    });
+    // Date extraction
+    if(Object.values(cfg.dateFields||{}).some(Boolean)){
+      const dateRow = cfg.mapRows.find(r=>r.sourceCol && r.sourceCol!=='__custom__' && ['fecha','date','time','timestamp','hora'].some(h=>r.sourceCol.toLowerCase().includes(h)));
+      const dateSourceCol = dateRow ? dateRow.sourceCol : cm.date;
+      if(dateSourceCol){
+        const dObj = parseDate(row[dateSourceCol]);
+        if(dObj) Object.assign(clean, extractDateParts(dObj, cfg.dateFields));
+      }
+    }
+    clean._raw = row;
+    return clean;
+  });
+
+  // Apply AI action results
+  cfg.mapRows.forEach(r => {
+    if(!r.actionEnabled || !r.actionResult || !Array.isArray(r.actionResult)) return;
+    const isCustom = r.sourceCol === '__custom__';
+    const outName = isCustom ? (r.customName||'Nueva_columna') : r.sourceCol+'_IA';
+    r.actionResult.forEach((val,i) => { if(processed[i]) processed[i][outName] = val; });
+  });
+
+  // Per-tab replacements
+  const allReplacements = [
+    ...(cfg.s1?.replacements||[]),
+    ...(cfg.sentiment?.replacements||[]),
+    ...(cfg.negativos?.replacements||[]),
+  ];
+  allReplacements.forEach(r => {
+    if(!r.col||!r.from) return;
+    processed.forEach(row => {
+      const v = String(row[r.col]??'');
+      if(v.toLowerCase()===r.from.toLowerCase()) row[r.col] = r.to;
+    });
+  });
+
+  // Tag classifier
+  if(cfg.tagClassifier && cfg.tagClassifier.enabled && cfg.tagClassifier.tagCol){
+    const tc = cfg.tagClassifier;
+    const lookup = {};
+    Object.entries(tc.groups).forEach(([grupo, tags])=>{
+      tags.forEach(t=>{ lookup[t.trim().toLowerCase()] = grupo; });
+    });
+    processed.forEach(row=>{
+      const tagVal = String(row[tc.tagCol]??row._raw?.[tc.tagCol]??'').trim();
+      row[tc.tagCol] = tagVal.toUpperCase();
+      row['Tipo de tags'] = lookup[tagVal.toLowerCase()] || 'OTROS';
+    });
+  }
+
+  // Primer contacto — filter out Privado rows
+  if(cfg.primerContacto && cfg.primerContacto.enabled && cfg.primerContacto.col){
+    processed = processed.filter(row=>{
+      const v = String(row[cfg.primerContacto.col]??row._raw?.[cfg.primerContacto.col]??'').trim().toLowerCase();
+      return v === 'público' || v === 'publico';
+    });
+  }
+
+  // Caso reincidente — must have 2 tags separated by , or ; and one must be "CASO REINCIDENTE"
+  if(cfg.casoReincidente && cfg.casoReincidente.enabled && cfg.casoReincidente.tagCol){
+    processed.forEach(row=>{
+      const raw = String(row[cfg.casoReincidente.tagCol]??row._raw?.[cfg.casoReincidente.tagCol]??'').trim();
+      if(!raw){ row['Caso reincidente'] = 'Revisar'; return; }
+      const parts = raw.split(/[,;]/).map(t=>t.trim()).filter(Boolean);
+      const hasCaso = parts.some(t=>t.toLowerCase()==='caso reincidente');
+      if(parts.length >= 2 && hasCaso) row['Caso reincidente'] = 'Sí';
+      else if(hasCaso || parts.length === 0) row['Caso reincidente'] = 'Revisar';
+      else row['Caso reincidente'] = 'No';
+    });
+  }
+
+  // ── NEGATIVOS ──────────────────────────────
+  const neg = cfg.negativos || {};
+
+  // Estado — validate and mark invalid in red
+  if(neg.estado && neg.estado.enabled && neg.estado.col){
+    const VALID = ['en proceso','escalado','finalizado','solucionado'];
+    processed.forEach(row=>{
+      const v = String(row[neg.estado.col]??row._raw?.[neg.estado.col]??'').trim();
+      if(v && !VALID.includes(v.toLowerCase())){
+        row[neg.estado.col] = '__INVALID__En proceso';
+      }
+    });
+  }
+
+  // Motivo — uppercase, flag SUGERENCIA
+  if(neg.motivo && neg.motivo.enabled && neg.motivo.col){
+    processed.forEach(row=>{
+      const v = String(row[neg.motivo.col]??row._raw?.[neg.motivo.col]??'').trim();
+      row[neg.motivo.col] = v.toUpperCase();
+    });
+  }
+
+  // Entrega datos — based on DNI2 col
+  if(neg.entregaDatos && neg.entregaDatos.enabled && neg.entregaDatos.col){
+    processed.forEach(row=>{
+      const v = String(row[neg.entregaDatos.col]??row._raw?.[neg.entregaDatos.col]??'').trim();
+      row['Entrega datos'] = (!v || v.toLowerCase()==='faltan datos') ? 'No brinda datos' : 'Brinda datos';
+    });
+  }
+
+  // Área escalada — uppercase
+  if(neg.areaEscalada && neg.areaEscalada.enabled && neg.areaEscalada.col){
+    processed.forEach(row=>{
+      const v = String(row[neg.areaEscalada.col]??row._raw?.[neg.areaEscalada.col]??'').trim();
+      row[neg.areaEscalada.col] = v.toUpperCase();
+    });
+  }
+  if(neg.reincidencia && neg.reincidencia.enabled && neg.reincidencia.nickCol && neg.reincidencia.dniCol){
+    const rc = neg.reincidencia;
+    // Build map: dniValue → Set of rowIndexes that share it (excluding "faltan datos"/empty)
+    const dniMap = {}; // dniVal → [rowIndexes]
+    processed.forEach((row,i)=>{
+      const dni = String(row[rc.dniCol]??row._raw?.[rc.dniCol]??'').trim();
+      const isFaltan = !dni || dni.toLowerCase()==='faltan datos';
+      if(isFaltan) return;
+      if(!dniMap[dni]) dniMap[dni]=[];
+      dniMap[dni].push(i);
+    });
+    processed.forEach((row,i)=>{
+      const dni = String(row[rc.dniCol]??row._raw?.[rc.dniCol]??'').trim();
+      const isFaltan = !dni || dni.toLowerCase()==='faltan datos';
+      if(isFaltan){ row['Reincidencia MP'] = 'No envía mensaje privado'; return; }
+      const appearances = dniMap[dni]||[];
+      if(appearances.length >= 2) row['Reincidencia MP'] = 'Reincidente / Reportado en grupo de alertas';
+      else row['Reincidencia MP'] = 'Ya envió mensaje privado';
+    });
+  }
+
+  // Clean internal field
+  processed.forEach(row => delete row._raw);
+
+  S.cleanData = processed;
+}
+
+// ═══════════════════════════════════════════════
+// AI DETECTION
+// ═══════════════════════════════════════════════
+async function aiDetectColumns(){
+  if(!S.apiKey){ alert('Agrega tu API Key de Anthropic en ⚙ Ajustes primero.'); return; }
+  S.aiLoading = true; render();
+  const sample = S.rawData.slice(0,4);
+  const uniq = {};
+  S.cols.forEach(c => { uniq[c] = [...new Set(S.rawData.map(r=>r[c]).filter(Boolean))].slice(0,15); });
+  const prompt = `Analiza este dataset. Devuelve SOLO JSON puro sin markdown.
+
+Columnas: ${JSON.stringify(S.cols)}
+Valores únicos muestra: ${JSON.stringify(uniq)}
+Primeras filas: ${JSON.stringify(sample)}
+
+Retorna exactamente:
+{
+  "rows": [
+    {"outputName": "nombre_legible", "sourceCol": "nombre_columna_exacto"}
+  ]
+}
+Incluye TODAS las columnas del dataset. outputName debe ser en español legible.`;
+
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const data = await res.json();
+    const raw = (data.content||[]).map(b=>b.text||'').join('');
+    const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(parsed.rows && Array.isArray(parsed.rows)){
+      const needed = Math.max(16, parsed.rows.length);
+      S.config.mapRows = Array.from({length:needed},(_,i)=>{
+        const r = parsed.rows[i] || {};
+        return {id:i, outputName:'', sourceCol:r.sourceCol||'', actionEnabled:false, action:'', actionResult:null};
+      });
+    }
+    S.aiLoading = false; render();
+  } catch(e){
+    S.aiLoading = false;
+    alert('Error AI: '+e.message);
+    render();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════
+function cleanForExport(data){
+  return data.map(row=>{
+    const clean = {};
+    Object.keys(row).forEach(k=>{
+      const v = String(row[k]??'');
+      clean[k] = v.startsWith('__INVALID__') ? v.replace('__INVALID__','') : row[k];
+    });
+    return clean;
+  });
+}
+
+function exportCSV(){
+  if(!S.cleanData.length) return;
+  const csv = Papa.unparse(cleanForExport(S.cleanData));
+  downloadBlob(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}), 'base_limpia.csv');
+}
+
+function exportXLSX(){
+  if(!S.cleanData.length) return;
+  const ws = XLSX.utils.json_to_sheet(cleanForExport(S.cleanData));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Base Limpia');
+  XLSX.writeFile(wb, 'base_limpia.xlsx');
+}
+
+function downloadBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════
+const C = {pos:'#2dd4bf',neg:'#fb7185',neu:'#64748b',acc:'#818cf8'};
+
+function destroyCharts(){ Object.values(S.chartInstances).forEach(c=>c.destroy()); S.chartInstances={}; }
+
+function renderCharts(){
+  setTimeout(()=>{
+    destroyCharts();
+    const data = S.cleanData;
+    if(!data.length) return;
+
+    const sentCol = (S._colMap||deriveColMap()).sentiment;
+    const tagCol = (S._colMap||deriveColMap()).tag;
+    const dateCol = (S._colMap||deriveColMap()).date;
+
+    // Sentiment counts
+    const counts = {pos:0,neg:0,neu:0};
+    if(sentCol){
+      data.forEach(r=>{
+        const v = String(r[sentCol]||'').toLowerCase();
+        if(['positivo','positive','pos'].some(x=>v.includes(x))) counts.pos++;
+        else if(['negativo','negative','neg'].some(x=>v.includes(x))) counts.neg++;
+        else counts.neu++;
+      });
+    }
+
+    // Donut
+    const donutEl = document.getElementById('chart-donut');
+    if(donutEl && sentCol){
+      S.chartInstances.donut = new Chart(donutEl,{
+        type:'doughnut',
+        data:{labels:['Positivo','Negativo','Neutro'],datasets:[{data:[counts.pos,counts.neg,counts.neu],backgroundColor:[C.pos,C.neg,C.neu],borderWidth:0,hoverOffset:6}]},
+        options:{responsive:true,cutout:'68%',plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Syne',size:12}}}}}
+      });
+    }
+
+    // Timeline (by month if date exists)
+    const timelineEl = document.getElementById('chart-timeline');
+    if(timelineEl && dateCol){
+      const byMonth = {};
+      data.forEach(r=>{
+        const d = parseDate(r[dateCol]);
+        if(!d) return;
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if(!byMonth[key]) byMonth[key]={pos:0,neg:0,neu:0};
+        if(sentCol){
+          const v = String(r[sentCol]||'').toLowerCase();
+          if(['positivo','positive','pos'].some(x=>v.includes(x))) byMonth[key].pos++;
+          else if(['negativo','negative','neg'].some(x=>v.includes(x))) byMonth[key].neg++;
+          else byMonth[key].neu++;
+        }
+      });
+      const labels = Object.keys(byMonth).sort();
+      S.chartInstances.timeline = new Chart(timelineEl,{
+        type:'line',
+        data:{labels,datasets:[
+          {label:'Positivo',data:labels.map(k=>byMonth[k].pos),borderColor:C.pos,backgroundColor:C.pos+'22',tension:.4,fill:true,pointRadius:3},
+          {label:'Negativo',data:labels.map(k=>byMonth[k].neg),borderColor:C.neg,backgroundColor:C.neg+'22',tension:.4,fill:true,pointRadius:3},
+          {label:'Neutro',data:labels.map(k=>byMonth[k].neu),borderColor:C.neu,borderDash:[4,4],tension:.4,fill:false,pointRadius:2}
+        ]},
+        options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Syne',size:12}}}},scales:{x:{ticks:{color:'#64748b',font:{size:10}}},y:{ticks:{color:'#64748b'},grid:{color:'#1c1c32'}}}}
+      });
+    }
+
+    // Tags bar
+    const tagEl = document.getElementById('chart-tags');
+    if(tagEl && tagCol){
+      const tagCount = {};
+      data.forEach(r=>{ const t=r[tagCol]||'Sin tag'; tagCount[t]=(tagCount[t]||0)+1; });
+      const sorted = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+      S.chartInstances.tags = new Chart(tagEl,{
+        type:'bar',
+        data:{labels:sorted.map(x=>x[0]),datasets:[{label:'Menciones',data:sorted.map(x=>x[1]),backgroundColor:C.acc+'cc',borderRadius:6}]},
+        options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1c1c32'}},y:{ticks:{color:'#e2e8f0',font:{size:11}}}}}
+      });
+    }
+  }, 80);
+}
+
+// ═══════════════════════════════════════════════
+// UI BUILDERS
+// ═══════════════════════════════════════════════
+function colOpts(val='', extra=''){
+  return `<option value="">— Ninguna —</option>${S.cols.map(c=>`<option value="${esc(c)}" ${c===val?'selected':''}>${esc(c)}</option>`).join('')}`;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function sentColor(v){
+  const s=String(v||'').toLowerCase();
+  if(['positivo','positive','pos'].some(x=>s.includes(x))) return `background:rgba(45,212,191,.15);color:#2dd4bf`;
+  if(['negativo','negative','neg'].some(x=>s.includes(x))) return `background:rgba(251,113,133,.15);color:#fb7185`;
+  return `background:rgba(100,116,139,.15);color:#94a3b8`;
+}
+
+// ─── HEADER ───────────────────────────────────
+function buildHeader(){
+  const online = navigator.onLine;
+  const tplNames = Object.keys(S.templates);
+  return `
+  <div id="header">
+    <h1><span class="logo-dot"></span> BaseFlow🧹</h1>
+    <div class="hdr-right">
+      <span style="font-size:11px;color:var(--sub)">
+        <span class="online-dot ${online?'on':'off'}"></span>${online?'Online · IA disponible':'Offline · modo manual'}
+      </span>
+      <div class="tpl-row">
+        ${tplNames.length?`<select id="tpl-sel" style="width:160px">
+          <option value="">Plantillas guardadas</option>
+          ${tplNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+        </select>
+        <button class="btn btn-sm" onclick="loadTpl()">Cargar</button>
+        <button class="btn btn-sm btn-danger" onclick="delTpl()">🗑</button>`:''}
+        ${S.step!=='upload'?`<button class="btn btn-sm btn-primary" onclick="saveCurrentTemplate()">💾 Guardar plantilla</button>`:''}
+      </div>
+      <button class="btn btn-sm" onclick="toggleTheme()" title="Cambiar tema">${S.theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button>
+      <button class="btn btn-sm" onclick="S.showSettings=true;render()">⚙ Ajustes</button>
+    </div>
+  </div>`;
+}
+
+function loadTpl(){ const s=document.getElementById('tpl-sel'); if(s&&s.value) loadTemplate(s.value); }
+function delTpl(){ const s=document.getElementById('tpl-sel'); if(s&&s.value) deleteTemplate(s.value); }
+
+// ─── STEP NAV ─────────────────────────────────
+function buildStepNav(){
+  const steps = [{id:'upload',label:'Subir archivo'},{id:'mapping',label:'Mapear columnas'},{id:'results',label:'Resultados'}];
+  const idx = steps.findIndex(s=>s.id===S.step);
+  return `<div class="steps">
+    ${steps.map((s,i)=>`
+    <button class="step-btn ${S.step===s.id?'active':i<idx?'done':''}" ${i>idx?'disabled':''} onclick="goStep('${s.id}')">
+      <span class="step-num">${i<idx?'✓':i+1}</span>${s.label}
+    </button>`).join('')}
+  </div>`;
+}
+
+function goStep(id){
+  if(id==='results'){ processData(); }
+  S.step=id; render();
+}
+
+// ─── UPLOAD ───────────────────────────────────
+function buildUpload(){
+  return `<div style="max-width:540px;margin:40px auto">
+    ${S.error?`<div class="alert alert-warn mb">${S.error}</div>`:''}
+    <div id="dropzone" onclick="document.getElementById('file-in').click()">
+      <div class="dz-icon">📂</div>
+      <h2>Sube tu base de datos</h2>
+      <p>Arrastra aquí o haz click para buscar</p>
+      <div class="format-tags mt">
+        <span class="tag">CSV</span><span class="tag">XLSX</span><span class="tag">XLS</span>
+      </div>
+    </div>
+    <input type="file" id="file-in" accept=".csv,.xlsx,.xls" style="display:none">
+    <div class="sep"></div>
+    <div class="card-sm">
+      <label>O pega un enlace de Google Sheets (publicado como CSV)</label>
+      <div class="row mt8">
+        <input id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/..." style="flex:1">
+        <button class="btn btn-primary" onclick="loadSheetURL(document.getElementById('sheet-url').value)">Cargar</button>
+      </div>
+    </div>
+    <div class="mt" style="color:var(--mut);font-size:11px;text-align:center">
+      Tus datos nunca salen de tu computador · Funciona sin internet (excepto Google Sheets)
+    </div>
+  </div>`;
+}
+
+// ─── AI ACTION ON ROW ─────────────────────────
+async function runRowAction(rowIdx){
+  const r = S.config.mapRows[rowIdx];
+  if(!r.action) return;
+  if(!S.apiKey){ alert('Agrega API Key en ⚙ Ajustes'); return; }
+  r.actionLoading = true; render();
+  const srcCol = r.sourceCol === '__custom__' ? null : r.sourceCol;
+  const vals = srcCol ? S.rawData.map(row=>row[srcCol]||'') : S.rawData.map((_,i)=>String(i));
+  const sample = vals.slice(0,8);
+  const prompt = `${srcCol ? `Tengo una columna "${srcCol}" con estos valores de ejemplo: ${JSON.stringify(sample)}.` : `Crea una nueva columna llamada "${r.customName||'Nueva'}".`}
+Instrucción: ${r.action}
+Devuelve SOLO un JSON array con el resultado para CADA una de las ${vals.length} filas, en orden, sin texto adicional ni markdown.
+${srcCol ? `Valores completos: ${JSON.stringify(vals)}` : `Genera ${vals.length} valores según la instrucción.`}`;
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,messages:[{role:'user',content:prompt}]})
+    });
+    const data = await res.json();
+    const raw = (data.content||[]).map(b=>b.text||'').join('');
+    r.actionResult = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    r.actionLoading = false; render();
+  } catch(e){ r.actionLoading=false; alert('Error: '+e.message); render(); }
+}
+
+// ─── MAPPING HELPERS ──────────────────────────
+function addMapRow(){
+  const id = Date.now();
+  S.config.mapRows.push({id,sourceCol:'',customName:'',actionEnabled:false,actionMode:'ai',action:'',formula:'',actionResult:null});
+  render();
+}
+function removeMapRow(idx){
+  if(idx < 0 || idx >= S.config.mapRows.length) return;
+  S.config.mapRows.splice(idx,1);
+  render();
+}
+function moveRow(idx, dir){
+  const rows = S.config.mapRows;
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= rows.length) return;
+  [rows[idx], rows[newIdx]] = [rows[newIdx], rows[idx]];
+  render();
+}
+function toggleRowAction(idx){
+  S.config.mapRows[idx].actionEnabled = !S.config.mapRows[idx].actionEnabled;
+  render();
+}
+function setActionMode(idx, mode){
+  S.config.mapRows[idx].actionMode = mode;
+  render();
+}
+function colOptsWithCustom(val=''){
+  return `<option value="">— Ninguna —</option>
+    ${S.cols.map(c=>`<option value="${esc(c)}" ${c===val?'selected':''}>${esc(c)}</option>`).join('')}
+    <option value="__custom__" ${val==='__custom__'?'selected':''} style="color:var(--acc);font-weight:700">✦ Personalizar (nueva columna)</option>`;
+}
+
+function buildMapping(){
+  const cfg = S.config;
+  const online = navigator.onLine;
+
+  return `<div>
+    <!-- TOP BAR -->
+    <div class="row mb" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:16px;font-weight:800">Mapear columnas</h2>
+        <p class="sub" style="font-size:12px;margin-top:3px">${S.rawData.length.toLocaleString()} filas · ${S.cols.length} columnas detectadas</p>
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div style="min-width:190px">
+          <input placeholder="Nombre de plantilla (ej: Sentiment)" value="${esc(cfg.name)}" oninput="S.config.name=this.value" style="height:36px">
+        </div>
+        ${online && S.apiKey ?
+          `<button class="btn btn-primary" onclick="aiDetectColumns()" ${S.aiLoading?'disabled':''} style="height:36px">
+            ${S.aiLoading?'⏳ Detectando…':'✨ Auto-detectar con IA'}
+          </button>` :
+          `<div class="alert alert-warn" style="font-size:11px;padding:6px 10px">${online?'⚙ Agrega API Key para usar IA':'📡 Offline — modo manual'}</div>`
+        }
+        <button class="btn btn-primary" onclick="goStep('results')" style="height:36px">Ver resultados →</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start">
+
+      <!-- MAIN TABLE -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="display:grid;grid-template-columns:28px 1fr 36px 52px 36px;gap:0;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+          <div></div>
+          <div style="color:var(--mut);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">Columna en tu CSV</div>
+          <div style="color:var(--acc);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;text-align:center" title="Activar acción IA / fórmula">⚡</div>
+          <div style="color:var(--mut);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;text-align:center">Orden</div>
+          <div></div>
+        </div>
+
+        <div style="max-height:520px;overflow-y:auto">
+          ${cfg.mapRows.map((r,i)=>{
+            const isCustom = r.sourceCol === '__custom__';
+            const lastIdx = cfg.mapRows.length - 1;
+            const isMissing = r._missing;
+            const isExtra = r._extra;
+            const rowBg = isMissing ? 'background:rgba(251,113,133,.06)' : isExtra ? 'background:rgba(100,116,139,.06)' : r.actionEnabled ? 'background:rgba(129,140,248,.04)' : '';
+            return `
+          <div style="border-bottom:1px solid var(--border)">
+            <div style="display:grid;grid-template-columns:28px 1fr 36px 52px 36px;gap:0;padding:6px 16px;align-items:center;${rowBg}">
+              <div style="color:var(--mut);font-size:11px;font-family:'Space Mono',monospace;text-align:center">${i+1}</div>
+              <div style="padding-right:8px;display:flex;flex-direction:column;gap:4px">
+                ${isMissing ? `<div style="font-size:10px;color:var(--neg);font-weight:700;margin-bottom:2px">⚠ Columna no encontrada en este archivo</div>` : ''}
+                ${isExtra ? `<div style="font-size:10px;color:var(--sub);margin-bottom:2px">↓ Columna extra del archivo (no estaba en plantilla)</div>` : ''}
+                <select onchange="S.config.mapRows[${i}].sourceCol=this.value;S.config.mapRows[${i}]._missing=false;S.config.mapRows[${i}]._extra=false;render()" style="height:32px;font-size:12px;width:100%;${isMissing?'border-color:var(--neg)':isExtra?'border-color:var(--neu);opacity:.7':''}">
+                  ${colOptsWithCustom(r.sourceCol)}
+                </select>
+                ${isCustom ? `<input placeholder="Nombre de la nueva columna" value="${esc(r.customName||'')}" oninput="S.config.mapRows[${i}].customName=this.value" style="height:28px;font-size:12px;border-color:var(--acc)">` : ''}
+              </div>
+              <div style="text-align:center">
+                <input type="checkbox" ${r.actionEnabled?'checked':''} onchange="toggleRowAction(${i})"
+                  title="Activar acción"
+                  style="width:16px;height:16px;cursor:pointer;accent-color:var(--acc)">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+                <button onclick="moveRow(${i},-1)" ${i===0?'disabled':''} style="background:none;border:none;color:${i===0?'var(--mut)':'var(--sub)'};cursor:${i===0?'default':'pointer'};font-size:12px;padding:1px 6px;line-height:1;transition:color .15s" onmouseover="if(${i}!==0)this.style.color='var(--acc)'" onmouseout="this.style.color='var(--sub)'">▲</button>
+                <button onclick="moveRow(${i},1)" ${i===lastIdx?'disabled':''} style="background:none;border:none;color:${i===lastIdx?'var(--mut)':'var(--sub)'};cursor:${i===lastIdx?'default':'pointer'};font-size:12px;padding:1px 6px;line-height:1;transition:color .15s" onmouseover="if(${i}!==${lastIdx})this.style.color='var(--acc)'" onmouseout="this.style.color='var(--sub)'">▼</button>
+              </div>
+              <div style="text-align:center">
+                <button onclick="removeMapRow(${i})" style="background:none;border:none;color:var(--mut);cursor:pointer;font-size:14px;padding:4px;transition:color .15s" onmouseover="this.style.color='#fb7185'" onmouseout="this.style.color='var(--mut)'" title="Eliminar fila">✕</button>
+              </div>
+            </div>
+            ${r.actionEnabled ? `
+            <div style="padding:8px 16px 12px 60px;background:rgba(129,140,248,.06);border-top:1px solid rgba(129,140,248,.12)">
+              <!-- Mode toggle -->
+              <div style="display:flex;gap:4px;margin-bottom:10px">
+                <button onclick="setActionMode(${i},'ai')" style="padding:4px 12px;border-radius:6px 0 0 6px;border:1px solid ${(r.actionMode||'ai')==='ai'?'var(--acc)':'var(--border)'};background:${(r.actionMode||'ai')==='ai'?'var(--acc)':'var(--surface)'};color:${(r.actionMode||'ai')==='ai'?'#fff':'var(--sub)'};font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">✨ Indicación IA</button>
+                <button onclick="setActionMode(${i},'formula')" style="padding:4px 12px;border-radius:0 6px 6px 0;border:1px solid ${(r.actionMode||'ai')==='formula'?'var(--acc)':'var(--border)'};background:${(r.actionMode||'ai')==='formula'?'var(--acc)':'var(--surface)'};color:${(r.actionMode||'ai')==='formula'?'#fff':'var(--sub)'};font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">📋 Fórmula</button>
+              </div>
+              ${(r.actionMode||'ai')==='ai' ? `
+              <div style="display:flex;gap:8px;align-items:flex-start">
+                <textarea rows="2" placeholder="Ej: Reemplaza Neutral→Neutro, Positive→Positivo, Negative→Negativo · Extrae solo el nombre sin @ · Detecta si es queja urgente y escribe Sí o No"
+                  style="resize:vertical;font-size:12px;line-height:1.5;background:var(--bg);flex:1;border-radius:6px;padding:6px 10px;border:1px solid var(--border);color:var(--text);font-family:'Syne',sans-serif"
+                  oninput="S.config.mapRows[${i}].action=this.value">${esc(r.action||'')}</textarea>
+                <button class="btn btn-sm btn-primary" onclick="runRowAction(${i})" ${r.actionLoading||(!r.sourceCol&&!isCustom)?'disabled':''} style="margin-top:0;flex-shrink:0">
+                  ${r.actionLoading?'⏳':'▶ Ejecutar'}
+                </button>
+              </div>
+              ${!S.apiKey?`<div style="color:var(--warn);font-size:10px;margin-top:4px">⚠ Agrega tu API Key en ⚙ Ajustes para ejecutar con IA</div>`:''}
+              ${r.actionResult?`<div class="alert alert-ok" style="font-size:11px;margin-top:6px">✓ ${r.actionResult.length} filas procesadas · columna "${esc(isCustom?(r.customName||'Nueva'):r.sourceCol)}_IA" lista</div>`:''}
+              ` : `
+              <div>
+                <textarea rows="2" placeholder="Fórmula Excel/Sheets: ej. =IF(A2=&quot;Neutral&quot;,&quot;Neutro&quot;,IF(A2=&quot;Positive&quot;,&quot;Positivo&quot;,&quot;Negativo&quot;))"
+                  style="resize:vertical;font-size:12px;line-height:1.5;background:var(--bg);width:100%;border-radius:6px;padding:6px 10px;border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace"
+                  oninput="S.config.mapRows[${i}].formula=this.value">${esc(r.formula||'')}</textarea>
+                <div style="color:var(--mut);font-size:10px;margin-top:4px">Copia esta fórmula en tu Excel/Sheets en la columna correspondiente · También puedes cambiar a Indicación IA para que lo haga automático</div>
+              </div>
+              `}
+            </div>` : ''}
+          </div>`;
+          }).join('')}
+        </div>
+
+        <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="addMapRow()">+ Agregar fila</button>
+            <span style="color:var(--mut);font-size:11px">${cfg.mapRows.length} fila(s)</span>
+          </div>
+          <div style="display:flex;gap:10px;font-size:10px;flex-wrap:wrap">
+            <span style="color:var(--neg)">⚠ Rojo = columna no encontrada</span>
+            <span style="color:var(--neu)">· Gris = columna extra del archivo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIDE PANEL -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- DATE FIELDS -->
+        <div class="card">
+          <div class="card-title">📅 Columnas de fecha</div>
+          <p class="sub" style="font-size:11px;margin-bottom:10px">Activa las que quieras generar automáticamente</p>
+          ${[
+            {key:'hora', label:'Rango horario', desc:'Solo la hora — ej. 19'},
+            {key:'fecha', label:'Fecha', desc:'dd/mm/yyyy'},
+            {key:'mes', label:'Mes', desc:'Nombre con mayúscula — ej. Marzo'},
+            {key:'semana', label:'Semana', desc:'Semana del mes — ej. 2'},
+            {key:'año', label:'Año', desc:'yyyy — ej. 2026'},
+          ].map(f=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+            <label class="toggle" style="flex-shrink:0">
+              <input type="checkbox" ${cfg.dateFields[f.key]?'checked':''} onchange="S.config.dateFields['${f.key}']=this.checked;render()">
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div style="font-size:13px;font-weight:600">${f.label}</div>
+              <div style="font-size:10px;color:var(--sub)">${f.desc}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+
+        <!-- TAG CLASSIFIER + S1 TABS -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <!-- Tab headers -->
+          <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface)">
+            ${['S1','Sentiment','Negativos'].map(t=>`
+            <button onclick="S.sideTab='${t}';render()" style="flex:1;background:none;border:none;border-bottom:2px solid ${S.sideTab===t?'var(--acc)':'transparent'};color:${S.sideTab===t?'var(--acc)':'var(--sub)'};font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:10px 4px;cursor:pointer;transition:all .15s;margin-bottom:-1px">${t}</button>
+            `).join('')}
+          </div>
+
+          <div style="padding:14px;max-height:600px;overflow-y:auto">
+          ${S.sideTab==='S1'?`
+            <!-- CLASIFICAR TAGS -->
+            <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${cfg.tagClassifier.enabled?'checked':''} onchange="S.config.tagClassifier.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                <span style="font-weight:700;font-size:13px">🏷️ Clasificar tags</span>
+              </div>
+              ${cfg.tagClassifier.enabled?`
+              <div class="field" style="margin-bottom:6px">
+                <label>Columna de tag</label>
+                <select onchange="S.config.tagClassifier.tagCol=this.value">${colOpts(cfg.tagClassifier.tagCol)}</select>
+              </div>
+              <div style="max-height:260px;overflow-y:auto">
+              ${['SERVICIO','VENTAS','OTROS'].map(grupo=>`
+              <div style="margin-bottom:10px">
+                <div style="font-size:10px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${grupo} (${(cfg.tagClassifier.groups[grupo]||[]).length})</div>
+                <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">
+                  ${(cfg.tagClassifier.groups[grupo]||[]).map((t,ti)=>`
+                  <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:10px;background:var(--border);color:var(--text)">
+                    ${esc(t)}<button onclick="S.config.tagClassifier.groups['${grupo}'].splice(${ti},1);render()" style="background:none;border:none;color:var(--neg);cursor:pointer;font-size:10px;padding:0;line-height:1">✕</button>
+                  </span>`).join('')}
+                </div>
+                <div style="display:flex;gap:4px">
+                  <input id="nt-${grupo}" placeholder="Nuevo tag..." style="height:26px;font-size:11px;flex:1">
+                  <button class="btn btn-sm" onclick="addTagToGroup('${grupo}')" style="height:26px;padding:0 8px;font-size:11px">+</button>
+                </div>
+              </div>`).join('')}
+              </div>
+              `:`<p class="sub" style="font-size:11px">Crea columna "Tipo de tags" con VENTAS · SERVICIO · OTROS</p>`}
+            </div>
+
+            <!-- PRIMER CONTACTO -->
+            <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:${cfg.primerContacto.enabled?'8':'0'}px">
+                <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${cfg.primerContacto.enabled?'checked':''} onchange="S.config.primerContacto.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                <div>
+                  <div style="font-weight:700;font-size:13px">💬 Primer contacto</div>
+                  ${!cfg.primerContacto.enabled?`<div style="font-size:10px;color:var(--sub)">Solo conserva filas con valor Público</div>`:''}
+                </div>
+              </div>
+              ${cfg.primerContacto.enabled?`
+              <div class="field" style="margin-bottom:0">
+                <label>Columna "Tipo Primer Msg"</label>
+                <select onchange="S.config.primerContacto.col=this.value">${colOpts(cfg.primerContacto.col)}</select>
+              </div>
+              <div class="alert alert-ok" style="font-size:11px;margin-top:6px">✓ Descarta filas <strong>Privado</strong> · conserva solo <strong>Público</strong></div>
+              `:''}
+            </div>
+
+            <!-- CASO REINCIDENTE -->
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:${cfg.casoReincidente.enabled?'8':'0'}px">
+                <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${cfg.casoReincidente.enabled?'checked':''} onchange="S.config.casoReincidente.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                <div>
+                  <div style="font-weight:700;font-size:13px">🔁 Caso reincidente</div>
+                  ${!cfg.casoReincidente.enabled?`<div style="font-size:10px;color:var(--sub)">Detecta "CASO REINCIDENTE" en Tags</div>`:''}
+                </div>
+              </div>
+              ${cfg.casoReincidente.enabled?`
+              <div class="field" style="margin-bottom:0">
+                <label>Columna de Tags</label>
+                <select onchange="S.config.casoReincidente.tagCol=this.value">${colOpts(cfg.casoReincidente.tagCol)}</select>
+              </div>
+              <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                Requiere 2 tags separados por <code>,</code> o <code>;</code><br>
+                → <strong style="color:var(--pos)">Sí</strong>: 2 tags + incluye "CASO REINCIDENTE"<br>
+                → <strong style="color:var(--warn)">Revisar</strong>: solo el tag o campo vacío<br>
+                → <strong style="color:var(--neg)">No</strong>: sin ese tag
+              </div>
+              `:''}
+            </div>
+
+            ${buildReemplazos('s1')}
+
+          `:S.sideTab==='Sentiment'?`
+            <div style="color:var(--mut);font-size:12px;text-align:center;padding:20px 0">
+              <div style="font-size:24px;margin-bottom:8px">📊</div>
+              Próximamente — configuración para reporte Sentiment
+            </div>
+            ${buildReemplazos('sentiment')}
+          `:`
+            ${(()=>{
+              const neg = cfg.negativos;
+              return `
+              <!-- ESTADO -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.estado.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.estado.enabled?'checked':''} onchange="S.config.negativos.estado.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">📋 Estado</div>
+                    ${!neg.estado.enabled?`<div style="font-size:10px;color:var(--sub)">Valida y corrige valores inválidos</div>`:''}
+                  </div>
+                </div>
+                ${neg.estado.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna Estado</label>
+                  <select onchange="S.config.negativos.estado.col=this.value">${colOpts(neg.estado.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Válidos: <strong>En proceso · Escalado · Finalizado · Solucionado</strong><br>
+                  Cualquier otro → se reescribe como <strong style="color:var(--neg)">En proceso</strong> en rojo
+                </div>`:''}
+              </div>
+
+              <!-- MOTIVO -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.motivo.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.motivo.enabled?'checked':''} onchange="S.config.negativos.motivo.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">✏️ Motivo</div>
+                    ${!neg.motivo.enabled?`<div style="font-size:10px;color:var(--sub)">Convierte a mayúsculas y resalta SUGERENCIA</div>`:''}
+                  </div>
+                </div>
+                ${neg.motivo.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna Motivo</label>
+                  <select onchange="S.config.negativos.motivo.col=this.value">${colOpts(neg.motivo.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Todo en MAYÚSCULAS · Si el valor es <strong style="color:var(--warn)">SUGERENCIA</strong> → se resalta en amarillo
+                </div>`:''}
+              </div>
+
+              <!-- ENTREGA DATOS -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.entregaDatos.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.entregaDatos.enabled?'checked':''} onchange="S.config.negativos.entregaDatos.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">📄 Entrega datos</div>
+                    ${!neg.entregaDatos.enabled?`<div style="font-size:10px;color:var(--sub)">Crea columna basada en DNI2</div>`:''}
+                  </div>
+                </div>
+                ${neg.entregaDatos.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna DNI2</label>
+                  <select onchange="S.config.negativos.entregaDatos.col=this.value">${colOpts(neg.entregaDatos.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Crea columna <strong>"Entrega datos"</strong><br>
+                  → Distinto a "Faltan datos" → <strong style="color:var(--pos)">Brinda datos</strong><br>
+                  → "Faltan datos" o vacío → <strong style="color:var(--neg)">No brinda datos</strong>
+                </div>`:''}
+              </div>
+
+              <!-- AREA ESCALADA -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.areaEscalada.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.areaEscalada.enabled?'checked':''} onchange="S.config.negativos.areaEscalada.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">📌 Área donde se escala</div>
+                    ${!neg.areaEscalada.enabled?`<div style="font-size:10px;color:var(--sub)">Convierte a mayúsculas</div>`:''}
+                  </div>
+                </div>
+                ${neg.areaEscalada.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna Área</label>
+                  <select onchange="S.config.negativos.areaEscalada.col=this.value">${colOpts(neg.areaEscalada.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px">Todo en MAYÚSCULAS</div>`:''}
+              </div>
+
+              <!-- REINCIDENCIA MP -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.reincidencia.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.reincidencia.enabled?'checked':''} onchange="S.config.negativos.reincidencia.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">🔁 Reincidencia MP</div>
+                    ${!neg.reincidencia.enabled?`<div style="font-size:10px;color:var(--sub)">Clasifica por Nick Name + DNI2</div>`:''}
+                  </div>
+                </div>
+                ${neg.reincidencia.enabled?`
+                <div class="field" style="margin-bottom:6px">
+                  <label>Columna Nick Name</label>
+                  <select onchange="S.config.negativos.reincidencia.nickCol=this.value">${colOpts(neg.reincidencia.nickCol)}</select>
+                </div>
+                <div class="field" style="margin-bottom:6px">
+                  <label>Columna DNI2</label>
+                  <select onchange="S.config.negativos.reincidencia.dniCol=this.value">${colOpts(neg.reincidencia.dniCol)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:4px;line-height:1.7">
+                  Crea columna <strong>"Reincidencia MP"</strong><br>
+                  → DNI2 vacío o "Faltan datos" → <strong style="color:var(--neu)">No envía mensaje privado</strong><br>
+                  → DNI2 con dato real, primera vez → <strong style="color:var(--pos)">Ya envió mensaje privado</strong><br>
+                  → Mismo DNI2 aparece en otra fila → <strong style="color:var(--neg)">Reincidente / Reportado en grupo de alertas</strong>
+                </div>`:''}
+              </div>
+
+              ${buildReemplazos('negativos')}`;
+            })()}
+          `}
+          </div>
+        </div>
+
+        <!-- QUICK ACTIONS -->
+        <div class="card" style="padding:14px">
+          <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:var(--sub)">Acciones rápidas</div>
+          <button class="btn btn-sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="autoSelectAll()">Auto-llenar todas las columnas</button>
+          <button class="btn btn-sm btn-danger" style="width:100%;justify-content:center" onclick="clearMapRows()">Limpiar todas las filas</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>`;
+}
+
+function addTagToGroup(grupo){
+  const inp = document.getElementById('nt-'+grupo);
+  if(!inp || !inp.value.trim()) return;
+  if(!S.config.tagClassifier.groups[grupo]) S.config.tagClassifier.groups[grupo]=[];
+  S.config.tagClassifier.groups[grupo].push(inp.value.trim());
+  render();
+}
+
+function autoSelectAll(){
+  const needed = Math.max(16, S.cols.length);
+  S.config.mapRows = Array.from({length:needed},(_,i)=>({
+    id:i, sourceCol: S.cols[i]||'', customName:'', actionEnabled:false, actionMode:'ai', action:'', formula:'', actionResult:null
+  }));
+  render();
+}
+function clearMapRows(){
+  if(!confirm('¿Limpiar todas las filas?')) return;
+  S.config.mapRows = Array.from({length:16},(_,i)=>({id:i,sourceCol:'',customName:'',actionEnabled:false,actionMode:'ai',action:'',formula:'',actionResult:null}));
+  render();
+}
+
+// ─── REEMPLAZOS HELPER ────────────────────────
+function buildReemplazos(tab){
+  const list = S.config[tab]?.replacements || [];
+  return `
+  <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">🔄 Reemplazos de valores</div>
+    ${list.length?`
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+      ${list.map((r,i)=>`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 28px;gap:4px;align-items:center">
+        <select onchange="S.config.${tab}.replacements[${i}].col=this.value" style="font-size:11px;height:28px">${colOpts(r.col)}</select>
+        <input value="${esc(r.from)}" placeholder="De..." oninput="S.config.${tab}.replacements[${i}].from=this.value" style="font-size:11px;height:28px">
+        <input value="${esc(r.to)}" placeholder="A..." oninput="S.config.${tab}.replacements[${i}].to=this.value" style="font-size:11px;height:28px">
+        <button onclick="S.config.${tab}.replacements.splice(${i},1);render()" style="background:none;border:none;color:var(--neg);cursor:pointer;font-size:13px">✕</button>
+      </div>`).join('')}
+    </div>`:''}
+    <button class="btn btn-sm" onclick="S.config.${tab}.replacements.push({col:'',from:'',to:''});render()" style="font-size:11px">+ Agregar reemplazo</button>
+  </div>`;
+}
+
+// ─── RESULTS ──────────────────────────────────
+function buildResults(){
+  if(!S.cleanData.length){ processData(); }
+  const data = S.cleanData;
+  const cols = data.length ? Object.keys(data[0]) : [];
+
+  // KPIs
+  const sentCol = (S._colMap || deriveColMap()).sentiment;
+  let pos=0,neg=0,neu=0;
+  if(sentCol){
+    data.forEach(r=>{
+      const v=String(r[sentCol]||'').toLowerCase();
+      if(['positivo','positive','pos'].some(x=>v.includes(x))) pos++;
+      else if(['negativo','negative','neg'].some(x=>v.includes(x))) neg++;
+      else neu++;
+    });
+  }
+  const total = data.length;
+  const nsi = total>0?((pos-neg)/total*100).toFixed(1):0;
+
+  return `<div>
+    <div class="row mb" style="justify-content:space-between">
+      <div>
+        <h2 style="font-size:16px;font-weight:800">Resultados</h2>
+        <p class="sub" style="font-size:12px">${total.toLocaleString()} filas · ${cols.length} columnas</p>
+      </div>
+      <div class="row">
+        <button class="btn btn-sm" onclick="exportCSV()">⬇ Exportar CSV</button>
+        <button class="btn btn-sm btn-pos" onclick="exportXLSX()">⬇ Exportar Excel</button>
+        <button class="btn btn-sm" onclick="S.step='upload';S.rawData=[];S.cleanData=[];S.cols=[];render()">+ Nueva base</button>
+      </div>
+    </div>
+
+    ${sentCol?`
+    <div class="kpi-grid mb">
+      ${[
+        {label:'Total',val:total.toLocaleString(),color:'var(--acc)'},
+        {label:'Positivo',val:pos.toLocaleString(),pct:total?(pos/total*100).toFixed(1)+'%':'',color:'var(--pos)'},
+        {label:'Negativo',val:neg.toLocaleString(),pct:total?(neg/total*100).toFixed(1)+'%':'',color:'var(--neg)'},
+        {label:'Neutro',val:neu.toLocaleString(),pct:total?(neu/total*100).toFixed(1)+'%':'',color:'var(--neu)'},
+        {label:'Net Sentiment',val:nsi+'%',color:parseFloat(nsi)>=0?'var(--pos)':'var(--neg)'},
+      ].map(k=>`<div class="kpi card-sm">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-val" style="color:${k.color}">${k.val}</div>
+        ${k.pct?`<div class="kpi-pct">${k.pct}</div>`:''}
+      </div>`).join('')}
+    </div>`:''}
+
+    <div class="card" style="padding:0">
+      <div class="data-table-wrap" style="max-height:520px;overflow-y:auto">
+        <table class="data-table">
+          <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${data.slice(0,300).map(row=>`<tr>${cols.map(c=>{
+              const v = row[c]===undefined||row[c]===null?'':String(row[c]);
+              if(c===sentCol) return `<td><span class="sent-badge" style="${sentColor(v)}">${esc(v)}</span></td>`;
+              if(c==='Caso reincidente') return `<td><span class="sent-badge" style="${v==='Sí'?'background:rgba(251,113,133,.15);color:#fb7185':v==='Revisar'?'background:rgba(245,158,11,.15);color:#f59e0b':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
+              if(c==='Tipo de tags') return `<td><span class="sent-badge" style="${v==='VENTAS'?'background:rgba(45,212,191,.15);color:#2dd4bf':v==='SERVICIO'?'background:rgba(129,140,248,.15);color:#818cf8':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
+              if(c==='Reincidencia MP') return `<td><span class="sent-badge" style="${v==='Reincidente / Reportado en grupo de alertas'?'background:rgba(251,113,133,.15);color:#fb7185':v==='Ya envió mensaje privado'?'background:rgba(45,212,191,.15);color:#2dd4bf':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
+              if(c==='Entrega datos') return `<td><span class="sent-badge" style="${v==='Brinda datos'?'background:rgba(45,212,191,.15);color:#2dd4bf':'background:rgba(251,113,133,.15);color:#fb7185'}">${esc(v)}</span></td>`;
+              // Estado — invalid marked with __INVALID__ prefix
+              if(v.startsWith('__INVALID__')) return `<td><span class="sent-badge" style="background:rgba(251,113,133,.15);color:#fb7185;border:1px solid #fb7185">${esc(v.replace('__INVALID__',''))}</span></td>`;
+              // Motivo — SUGERENCIA in yellow
+              if(c === (S.config.negativos?.motivo?.col||'__none__') && v === 'SUGERENCIA') return `<td><span class="sent-badge" style="background:rgba(245,158,11,.2);color:#f59e0b">${esc(v)}</span></td>`;
+              return `<td title="${esc(v)}">${esc(v.length>60?v.slice(0,57)+'…':v)}</td>`;
+            }).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${data.length>300?`<div style="padding:10px;text-align:center;color:var(--mut);font-size:11px;font-family:Space Mono">Mostrando 300 de ${data.length.toLocaleString()} filas · Exporta para ver todo</div>`:''}
+    </div>
+  </div>`;
+}
+
+// ─── SETTINGS ─────────────────────────────────
+function buildSettings(){
+  return `<div id="settings-overlay" onclick="if(event.target.id==='settings-overlay'){S.showSettings=false;render()}">
+    <div id="settings-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h3 style="font-size:16px;font-weight:800">⚙ Ajustes</h3>
+        <button class="btn btn-sm" onclick="S.showSettings=false;render()">✕</button>
+      </div>
+      <div class="field">
+        <label>API Key de Anthropic (opcional)</label>
+        <input type="password" id="api-key-in" placeholder="sk-ant-..." value="${esc(S.apiKey)}">
+        <p class="sub mt8" style="font-size:11px">Solo para usar auto-detección de columnas con IA. Se guarda localmente en tu navegador. <a href="https://console.anthropic.com" target="_blank" style="color:var(--acc)">Obtén una aquí →</a></p>
+      </div>
+      <div class="sep"></div>
+      <div style="margin-bottom:12px">
+        <div class="card-title" style="font-size:12px">Plantillas guardadas (${Object.keys(S.templates).length})</div>
+        ${Object.keys(S.templates).length?Object.keys(S.templates).map(n=>`
+          <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px">${esc(n)}</span>
+            <div class="row">
+              <button class="btn btn-sm" onclick="loadTemplate('${esc(n)}');S.showSettings=false">Cargar</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${esc(n)}')">🗑</button>
+            </div>
+          </div>`).join('') : `<p class="sub" style="font-size:12px">Sin plantillas guardadas aún</p>`}
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn btn-primary" onclick="saveApiKey(document.getElementById('api-key-in').value);S.showSettings=false;render()">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// MAIN RENDER + EVENTS
+// ═══════════════════════════════════════════════
+function render(){
+  safeConfig();
+  try{
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    ${buildHeader()}
+    ${S.step!=='upload'?buildStepNav():''}
+    <div class="content">${
+      S.step==='upload'?buildUpload():
+      S.step==='mapping'?buildMapping():
+      buildResults()
+    }</div>
+    ${S.showSettings?buildSettings():''}
+  `;
+
+  // Events
+  const dropzone = document.getElementById('dropzone');
+  if(dropzone){
+    dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+    dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);});
+  }
+  const fileIn = document.getElementById('file-in');
+  if(fileIn) fileIn.addEventListener('change',e=>{if(e.target.files[0]) readFile(e.target.files[0]);});
+
+  window.addEventListener('online',()=>{S.online=true;});
+  window.addEventListener('offline',()=>{S.online=false;});
+  } catch(e){ console.error('Render error:', e); }
+}
+
+// Init
+render();
+</script>
+</body>
+</html>
