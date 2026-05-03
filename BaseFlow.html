@@ -173,9 +173,15 @@ function makeConfig(name=''){
     tagClassifier:{ enabled:false, tagCol:'', outputCol:'Tipo de tags', groups: JSON.parse(JSON.stringify(DEFAULT_TAGS)) },
     primerContacto:{ enabled:false, col:'' },
     casoReincidente:{ enabled:false, tagCol:'' },
-    replacements:[],
-    conditionals:[],
-    reincidence:{enabled:false,contactCol:'',conditionCol:'',conditionValue:'',outputName:'Reincidencia'},
+    s1:{ replacements:[] },
+    sentiment:{ replacements:[] },
+    negativos:{
+      estado:{ enabled:false, col:'' },
+      motivo:{ enabled:false, col:'' },
+      entregaDatos:{ enabled:false, col:'' },
+      reincidencia:{ enabled:false, nickCol:'', dniCol:'' },
+      replacements:[],
+    },
   };
 }
 
@@ -239,12 +245,19 @@ function deleteTemplate(name){
 // ═══════════════════════════════════════════════
 // FILE READING
 // ═══════════════════════════════════════════════
+function autoFillFromCols(){
+  const needed = Math.max(16, S.cols.length);
+  S.config.mapRows = Array.from({length:needed},(_,i)=>({
+    id:i, sourceCol: S.cols[i]||'', customName:'', actionEnabled:false, actionMode:'ai', action:'', formula:'', actionResult:null
+  }));
+}
+
 function readFile(file){
   const ext = file.name.split('.').pop().toLowerCase();
   if(ext === 'csv'){
     Papa.parse(file,{
       header:true, skipEmptyLines:true,
-      complete(r){ S.rawData = r.data; S.cols = r.meta.fields||[]; S.step='mapping'; S.error=''; render(); },
+      complete(r){ S.rawData = r.data; S.cols = r.meta.fields||[]; autoFillFromCols(); S.step='mapping'; S.error=''; render(); },
       error(e){ S.error = 'Error leyendo CSV: '+e.message; render(); }
     });
   } else if(['xlsx','xls'].includes(ext)){
@@ -254,9 +267,8 @@ function readFile(file){
         const wb = XLSX.read(e.target.result, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(ws, {defval:''});
-        S.rawData = json;
-        S.cols = json.length ? Object.keys(json[0]) : [];
-        S.step = 'mapping'; S.error = ''; render();
+        S.rawData = json; S.cols = json.length ? Object.keys(json[0]) : [];
+        autoFillFromCols(); S.step = 'mapping'; S.error = ''; render();
       } catch(err){ S.error = 'Error leyendo Excel: '+err.message; render(); }
     };
     reader.readAsArrayBuffer(file);
@@ -279,7 +291,7 @@ function loadSheetURL(url){
     .then(txt=>{
       Papa.parse(txt,{
         header:true, skipEmptyLines:true,
-        complete(r){ S.rawData=r.data; S.cols=r.meta.fields||[]; S.step='mapping'; render(); }
+        complete(r){ S.rawData=r.data; S.cols=r.meta.fields||[]; autoFillFromCols(); S.step='mapping'; render(); }
       });
     })
     .catch(()=>{ S.error='No se pudo cargar el sheet. Asegúrate que esté publicado como CSV o usa un enlace de exportación.'; render(); });
@@ -352,50 +364,19 @@ function processData(){
     r.actionResult.forEach((val,i) => { if(processed[i]) processed[i][outName] = val; });
   });
 
-  // Replacements
-  cfg.replacements.forEach(r => {
+  // Per-tab replacements
+  const allReplacements = [
+    ...(cfg.s1?.replacements||[]),
+    ...(cfg.sentiment?.replacements||[]),
+    ...(cfg.negativos?.replacements||[]),
+  ];
+  allReplacements.forEach(r => {
     if(!r.col||!r.from) return;
     processed.forEach(row => {
       const v = String(row[r.col]??'');
       if(v.toLowerCase()===r.from.toLowerCase()) row[r.col] = r.to;
     });
   });
-
-  // Conditionals
-  cfg.conditionals.forEach(c => {
-    if(!c.name||!c.sourceCol) return;
-    processed.forEach(row => {
-      const v = String(row[c.sourceCol]??row._raw?.[c.sourceCol]??'').toLowerCase();
-      row[c.name] = v.includes((c.ifContains||'').toLowerCase()) ? c.then : c.else;
-    });
-  });
-
-  // Reincidence
-  if(cfg.reincidence.enabled && cfg.reincidence.contactCol){
-    const rc = cfg.reincidence;
-    const counts = {};
-    processed.forEach(row => {
-      const contact = String(row[rc.contactCol]??row._raw?.[rc.contactCol]??'').trim();
-      if(!contact) return;
-      const v = String(row[rc.conditionCol]??row._raw?.[rc.conditionCol]??'');
-      const match = rc.conditionValue ? v.toLowerCase().includes(rc.conditionValue.toLowerCase()) : true;
-      if(!counts[contact]) counts[contact]={total:0,cond:0};
-      counts[contact].total++;
-      if(match) counts[contact].cond++;
-    });
-    processed.forEach(row => {
-      const contact = String(row[rc.contactCol]??row._raw?.[rc.contactCol]??'').trim();
-      const c = counts[contact];
-      let label = '—';
-      if(c){
-        if(c.cond>=2) label='Reincidente';
-        else if(c.cond===1 && c.total===1) label='Sin datos único';
-        else if(c.total===1) label='Envió una vez';
-        else label='Envió datos';
-      }
-      row[rc.outputName||'Reincidencia'] = label;
-    });
-  }
 
   // Tag classifier
   if(cfg.tagClassifier && cfg.tagClassifier.enabled && cfg.tagClassifier.tagCol){
@@ -428,6 +409,58 @@ function processData(){
       if(parts.length >= 2 && hasCaso) row['Caso reincidente'] = 'Sí';
       else if(hasCaso || parts.length === 0) row['Caso reincidente'] = 'Revisar';
       else row['Caso reincidente'] = 'No';
+    });
+  }
+
+  // ── NEGATIVOS ──────────────────────────────
+  const neg = cfg.negativos || {};
+
+  // Estado — validate and mark invalid in red
+  if(neg.estado && neg.estado.enabled && neg.estado.col){
+    const VALID = ['en proceso','escalado','finalizado','solucionado'];
+    processed.forEach(row=>{
+      const v = String(row[neg.estado.col]??row._raw?.[neg.estado.col]??'').trim();
+      if(v && !VALID.includes(v.toLowerCase())){
+        row[neg.estado.col] = '__INVALID__En proceso';
+      }
+    });
+  }
+
+  // Motivo — uppercase, flag SUGERENCIA
+  if(neg.motivo && neg.motivo.enabled && neg.motivo.col){
+    processed.forEach(row=>{
+      const v = String(row[neg.motivo.col]??row._raw?.[neg.motivo.col]??'').trim();
+      row[neg.motivo.col] = v.toUpperCase();
+    });
+  }
+
+  // Entrega datos — based on DNI2 col
+  if(neg.entregaDatos && neg.entregaDatos.enabled && neg.entregaDatos.col){
+    processed.forEach(row=>{
+      const v = String(row[neg.entregaDatos.col]??row._raw?.[neg.entregaDatos.col]??'').trim();
+      row['Entrega datos'] = (!v || v.toLowerCase()==='faltan datos') ? 'No brinda datos' : 'Brinda datos';
+    });
+  }
+
+  // Reincidencia Negativos — Nick Name + DNI2
+  if(neg.reincidencia && neg.reincidencia.enabled && neg.reincidencia.nickCol && neg.reincidencia.dniCol){
+    const rc = neg.reincidencia;
+    // Build map: dniValue → Set of rowIndexes that share it (excluding "faltan datos"/empty)
+    const dniMap = {}; // dniVal → [rowIndexes]
+    processed.forEach((row,i)=>{
+      const dni = String(row[rc.dniCol]??row._raw?.[rc.dniCol]??'').trim();
+      const isFaltan = !dni || dni.toLowerCase()==='faltan datos';
+      if(isFaltan) return;
+      if(!dniMap[dni]) dniMap[dni]=[];
+      dniMap[dni].push(i);
+    });
+    processed.forEach((row,i)=>{
+      const dni = String(row[rc.dniCol]??row._raw?.[rc.dniCol]??'').trim();
+      const isFaltan = !dni || dni.toLowerCase()==='faltan datos';
+      if(isFaltan){ row['Reincidencia MP'] = 'No envía mensaje privado'; return; }
+      const appearances = dniMap[dni]||[];
+      if(appearances.length >= 2) row['Reincidencia MP'] = 'Reincidente / Reportado en grupo de alertas';
+      else row['Reincidencia MP'] = 'Ya envió mensaje privado';
     });
   }
 
@@ -487,15 +520,26 @@ Incluye TODAS las columnas del dataset. outputName debe ser en español legible.
 // ═══════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════
+function cleanForExport(data){
+  return data.map(row=>{
+    const clean = {};
+    Object.keys(row).forEach(k=>{
+      const v = String(row[k]??'');
+      clean[k] = v.startsWith('__INVALID__') ? v.replace('__INVALID__','') : row[k];
+    });
+    return clean;
+  });
+}
+
 function exportCSV(){
   if(!S.cleanData.length) return;
-  const csv = Papa.unparse(S.cleanData);
+  const csv = Papa.unparse(cleanForExport(S.cleanData));
   downloadBlob(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}), 'base_limpia.csv');
 }
 
 function exportXLSX(){
   if(!S.cleanData.length) return;
-  const ws = XLSX.utils.json_to_sheet(S.cleanData);
+  const ws = XLSX.utils.json_to_sheet(cleanForExport(S.cleanData));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Base Limpia');
   XLSX.writeFile(wb, 'base_limpia.xlsx');
@@ -634,7 +678,7 @@ function delTpl(){ const s=document.getElementById('tpl-sel'); if(s&&s.value) de
 
 // ─── STEP NAV ─────────────────────────────────
 function buildStepNav(){
-  const steps = [{id:'upload',label:'Subir archivo'},{id:'mapping',label:'Mapear columnas'},{id:'transform',label:'Transformar'},{id:'results',label:'Resultados'}];
+  const steps = [{id:'upload',label:'Subir archivo'},{id:'mapping',label:'Mapear columnas'},{id:'results',label:'Resultados'}];
   const idx = steps.findIndex(s=>s.id===S.step);
   return `<div class="steps">
     ${steps.map((s,i)=>`
@@ -645,9 +689,8 @@ function buildStepNav(){
 }
 
 function goStep(id){
-  if(id==='results'){ processData(); renderCharts(); }
+  if(id==='results'){ processData(); }
   S.step=id; render();
-  if(id==='results') renderCharts();
 }
 
 // ─── UPLOAD ───────────────────────────────────
@@ -755,7 +798,7 @@ function buildMapping(){
           </button>` :
           `<div class="alert alert-warn" style="font-size:11px;padding:6px 10px">${online?'⚙ Agrega API Key para usar IA':'📡 Offline — modo manual'}</div>`
         }
-        <button class="btn btn-primary" onclick="goStep('transform')" style="height:36px">Siguiente →</button>
+        <button class="btn btn-primary" onclick="goStep('results')" style="height:36px">Ver resultados →</button>
       </div>
     </div>
 
@@ -943,16 +986,106 @@ function buildMapping(){
               `:''}
             </div>
 
+            ${buildReemplazos('s1')}
+
           `:S.sideTab==='Sentiment'?`
             <div style="color:var(--mut);font-size:12px;text-align:center;padding:20px 0">
               <div style="font-size:24px;margin-bottom:8px">📊</div>
               Próximamente — configuración para reporte Sentiment
             </div>
+            ${buildReemplazos('sentiment')}
           `:`
-            <div style="color:var(--mut);font-size:12px;text-align:center;padding:20px 0">
-              <div style="font-size:24px;margin-bottom:8px">📉</div>
-              Próximamente — configuración para reporte Negativos
-            </div>
+            ${(()=>{
+              const neg = cfg.negativos;
+              return `
+              <!-- ESTADO -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.estado.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.estado.enabled?'checked':''} onchange="S.config.negativos.estado.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">📋 Estado</div>
+                    ${!neg.estado.enabled?`<div style="font-size:10px;color:var(--sub)">Valida y corrige valores inválidos</div>`:''}
+                  </div>
+                </div>
+                ${neg.estado.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna Estado</label>
+                  <select onchange="S.config.negativos.estado.col=this.value">${colOpts(neg.estado.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Válidos: <strong>En proceso · Escalado · Finalizado · Solucionado</strong><br>
+                  Cualquier otro → se reescribe como <strong style="color:var(--neg)">En proceso</strong> en rojo
+                </div>`:''}
+              </div>
+
+              <!-- MOTIVO -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.motivo.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.motivo.enabled?'checked':''} onchange="S.config.negativos.motivo.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">✏️ Motivo</div>
+                    ${!neg.motivo.enabled?`<div style="font-size:10px;color:var(--sub)">Convierte a mayúsculas y resalta SUGERENCIA</div>`:''}
+                  </div>
+                </div>
+                ${neg.motivo.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna Motivo</label>
+                  <select onchange="S.config.negativos.motivo.col=this.value">${colOpts(neg.motivo.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Todo en MAYÚSCULAS · Si el valor es <strong style="color:var(--warn)">SUGERENCIA</strong> → se resalta en amarillo
+                </div>`:''}
+              </div>
+
+              <!-- ENTREGA DATOS -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.entregaDatos.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.entregaDatos.enabled?'checked':''} onchange="S.config.negativos.entregaDatos.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">📄 Entrega datos</div>
+                    ${!neg.entregaDatos.enabled?`<div style="font-size:10px;color:var(--sub)">Crea columna basada en DNI2</div>`:''}
+                  </div>
+                </div>
+                ${neg.entregaDatos.enabled?`
+                <div class="field" style="margin-bottom:0">
+                  <label>Columna DNI2</label>
+                  <select onchange="S.config.negativos.entregaDatos.col=this.value">${colOpts(neg.entregaDatos.col)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:6px;line-height:1.6">
+                  Crea columna <strong>"Entrega datos"</strong><br>
+                  → Distinto a "Faltan datos" → <strong style="color:var(--pos)">Brinda datos</strong><br>
+                  → "Faltan datos" o vacío → <strong style="color:var(--neg)">No brinda datos</strong>
+                </div>`:''}
+              </div>
+
+              <!-- REINCIDENCIA MP -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:${neg.reincidencia.enabled?'8':'0'}px">
+                  <label class="toggle" style="flex-shrink:0"><input type="checkbox" ${neg.reincidencia.enabled?'checked':''} onchange="S.config.negativos.reincidencia.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
+                  <div>
+                    <div style="font-weight:700;font-size:13px">🔁 Reincidencia MP</div>
+                    ${!neg.reincidencia.enabled?`<div style="font-size:10px;color:var(--sub)">Clasifica por Nick Name + DNI2</div>`:''}
+                  </div>
+                </div>
+                ${neg.reincidencia.enabled?`
+                <div class="field" style="margin-bottom:6px">
+                  <label>Columna Nick Name</label>
+                  <select onchange="S.config.negativos.reincidencia.nickCol=this.value">${colOpts(neg.reincidencia.nickCol)}</select>
+                </div>
+                <div class="field" style="margin-bottom:6px">
+                  <label>Columna DNI2</label>
+                  <select onchange="S.config.negativos.reincidencia.dniCol=this.value">${colOpts(neg.reincidencia.dniCol)}</select>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:4px;line-height:1.7">
+                  Crea columna <strong>"Reincidencia MP"</strong><br>
+                  → DNI2 vacío o "Faltan datos" → <strong style="color:var(--neu)">No envía mensaje privado</strong><br>
+                  → DNI2 con dato real, primera vez → <strong style="color:var(--pos)">Ya envió mensaje privado</strong><br>
+                  → Mismo DNI2 aparece en otra fila → <strong style="color:var(--neg)">Reincidente / Reportado en grupo de alertas</strong>
+                </div>`:''}
+              </div>
+
+              ${buildReemplazos('negativos')}`;
+            })()}
           `}
           </div>
         </div>
@@ -991,84 +1124,23 @@ function clearMapRows(){
   render();
 }
 
-// ─── TRANSFORM ────────────────────────────────
-function buildTransform(){
-  const cfg = S.config;
-  return `<div>
-    <h2 style="font-size:16px;font-weight:800;margin-bottom:16px">Transformaciones</h2>
-    <div style="display:flex;flex-direction:column;gap:16px">
-
-      <!-- REPLACEMENTS -->
-      <div class="card">
-        <div class="card-title">🔄 Reemplazos de valores</div>
-        <p class="sub mb8" style="font-size:12px">Cambia valores específicos. Ej: "Neutral" → "Neutro"</p>
-        ${cfg.replacements.length?`
-        <table class="rules-table mb8">
-          <thead><tr><th>Columna</th><th>Valor original</th><th>Reemplazar por</th><th></th></tr></thead>
-          <tbody>
-            ${cfg.replacements.map((r,i)=>`
-            <tr>
-              <td><select onchange="S.config.replacements[${i}].col=this.value">${colOpts(r.col)}</select></td>
-              <td><input value="${esc(r.from)}" placeholder="Neutral" oninput="S.config.replacements[${i}].from=this.value"></td>
-              <td><input value="${esc(r.to)}" placeholder="Neutro" oninput="S.config.replacements[${i}].to=this.value"></td>
-              <td><button class="btn btn-sm btn-danger" onclick="S.config.replacements.splice(${i},1);render()">✕</button></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`:''}
-        <button class="btn btn-sm" onclick="S.config.replacements.push({col:'',from:'',to:''});render()">+ Agregar reemplazo</button>
-      </div>
-
-      <!-- CONDITIONALS -->
-      <div class="card">
-        <div class="card-title">⚙️ Columnas condicionales</div>
-        <p class="sub mb8" style="font-size:12px">Crea una columna nueva según el contenido de otra. Ej: si "Estado" contiene "No envía" → "No envió datos"</p>
-        ${cfg.conditionals.length?`
-        <table class="rules-table mb8">
-          <thead><tr><th>Nueva columna</th><th>Basada en</th><th>Si contiene</th><th>Entonces</th><th>Si no</th><th></th></tr></thead>
-          <tbody>
-            ${cfg.conditionals.map((c,i)=>`
-            <tr>
-              <td><input value="${esc(c.name)}" placeholder="Comportamiento" oninput="S.config.conditionals[${i}].name=this.value"></td>
-              <td><select onchange="S.config.conditionals[${i}].sourceCol=this.value">${colOpts(c.sourceCol)}</select></td>
-              <td><input value="${esc(c.ifContains)}" placeholder="No envía datos" oninput="S.config.conditionals[${i}].ifContains=this.value"></td>
-              <td><input value="${esc(c.then)}" placeholder="No envió datos" oninput="S.config.conditionals[${i}].then=this.value"></td>
-              <td><input value="${esc(c.else)}" placeholder="Envió datos" oninput="S.config.conditionals[${i}].else=this.value"></td>
-              <td><button class="btn btn-sm btn-danger" onclick="S.config.conditionals.splice(${i},1);render()">✕</button></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`:''}
-        <button class="btn btn-sm" onclick="S.config.conditionals.push({name:'',sourceCol:'',ifContains:'',then:'',else:''});render()">+ Agregar condición</button>
-      </div>
-
-      <!-- REINCIDENCE -->
-      <div class="card">
-        <div class="card-title">🔁 Detección de reincidencia</div>
-        <div class="toggle-row mb8">
-          <label class="toggle"><input type="checkbox" ${cfg.reincidence.enabled?'checked':''} onchange="S.config.reincidence.enabled=this.checked;render()"><span class="toggle-slider"></span></label>
-          <span style="font-weight:600;font-size:13px">Activar detección de reincidencia</span>
-        </div>
-        ${cfg.reincidence.enabled?`
-        <div class="grid2" style="gap:10px">
-          <div class="field"><label>Columna de contacto/nombre</label>
-            <select onchange="S.config.reincidence.contactCol=this.value">${colOpts(cfg.reincidence.contactCol)}</select></div>
-          <div class="field"><label>Columna de condición</label>
-            <select onchange="S.config.reincidence.conditionCol=this.value">${colOpts(cfg.reincidence.conditionCol)}</select></div>
-          <div class="field"><label>Valor que activa condición</label>
-            <input placeholder="No envía datos" value="${esc(cfg.reincidence.conditionValue)}" oninput="S.config.reincidence.conditionValue=this.value"></div>
-          <div class="field"><label>Nombre de columna resultado</label>
-            <input placeholder="Reincidencia" value="${esc(cfg.reincidence.outputName)}" oninput="S.config.reincidence.outputName=this.value"></div>
-        </div>
-        <div class="alert alert-ok" style="font-size:11px">
-          Resultados posibles: <strong>Reincidente</strong> (2+ veces) · <strong>Sin datos único</strong> (1 vez sin datos) · <strong>Envió una vez</strong> · <strong>Envió datos</strong>
-        </div>`:''
-        }
-      </div>
-
-    </div>
-
-    <div class="row mt" style="justify-content:flex-end">
-      <button class="btn btn-primary" onclick="goStep('results');renderCharts()">Ver resultados →</button>
-    </div>
+// ─── REEMPLAZOS HELPER ────────────────────────
+function buildReemplazos(tab){
+  const list = S.config[tab]?.replacements || [];
+  return `
+  <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">🔄 Reemplazos de valores</div>
+    ${list.length?`
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+      ${list.map((r,i)=>`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 28px;gap:4px;align-items:center">
+        <select onchange="S.config.${tab}.replacements[${i}].col=this.value" style="font-size:11px;height:28px">${colOpts(r.col)}</select>
+        <input value="${esc(r.from)}" placeholder="De..." oninput="S.config.${tab}.replacements[${i}].from=this.value" style="font-size:11px;height:28px">
+        <input value="${esc(r.to)}" placeholder="A..." oninput="S.config.${tab}.replacements[${i}].to=this.value" style="font-size:11px;height:28px">
+        <button onclick="S.config.${tab}.replacements.splice(${i},1);render()" style="background:none;border:none;color:var(--neg);cursor:pointer;font-size:13px">✕</button>
+      </div>`).join('')}
+    </div>`:''}
+    <button class="btn btn-sm" onclick="S.config.${tab}.replacements.push({col:'',from:'',to:''});render()" style="font-size:11px">+ Agregar reemplazo</button>
   </div>`;
 }
 
@@ -1130,6 +1202,12 @@ function buildResults(){
               if(c===sentCol) return `<td><span class="sent-badge" style="${sentColor(v)}">${esc(v)}</span></td>`;
               if(c==='Caso reincidente') return `<td><span class="sent-badge" style="${v==='Sí'?'background:rgba(251,113,133,.15);color:#fb7185':v==='Revisar'?'background:rgba(245,158,11,.15);color:#f59e0b':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
               if(c==='Tipo de tags') return `<td><span class="sent-badge" style="${v==='VENTAS'?'background:rgba(45,212,191,.15);color:#2dd4bf':v==='SERVICIO'?'background:rgba(129,140,248,.15);color:#818cf8':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
+              if(c==='Reincidencia MP') return `<td><span class="sent-badge" style="${v==='Reincidente / Reportado en grupo de alertas'?'background:rgba(251,113,133,.15);color:#fb7185':v==='Ya envió mensaje privado'?'background:rgba(45,212,191,.15);color:#2dd4bf':'background:rgba(100,116,139,.15);color:#94a3b8'}">${esc(v)}</span></td>`;
+              if(c==='Entrega datos') return `<td><span class="sent-badge" style="${v==='Brinda datos'?'background:rgba(45,212,191,.15);color:#2dd4bf':'background:rgba(251,113,133,.15);color:#fb7185'}">${esc(v)}</span></td>`;
+              // Estado — invalid marked with __INVALID__ prefix
+              if(v.startsWith('__INVALID__')) return `<td><span class="sent-badge" style="background:rgba(251,113,133,.15);color:#fb7185;border:1px solid #fb7185">${esc(v.replace('__INVALID__',''))}</span></td>`;
+              // Motivo — SUGERENCIA in yellow
+              if(c === (S.config.negativos?.motivo?.col||'__none__') && v === 'SUGERENCIA') return `<td><span class="sent-badge" style="background:rgba(245,158,11,.2);color:#f59e0b">${esc(v)}</span></td>`;
               return `<td title="${esc(v)}">${esc(v.length>60?v.slice(0,57)+'…':v)}</td>`;
             }).join('')}</tr>`).join('')}
           </tbody>
@@ -1183,7 +1261,6 @@ function render(){
     <div class="content">${
       S.step==='upload'?buildUpload():
       S.step==='mapping'?buildMapping():
-      S.step==='transform'?buildTransform():
       buildResults()
     }</div>
     ${S.showSettings?buildSettings():''}
